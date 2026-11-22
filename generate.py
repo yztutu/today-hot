@@ -66,6 +66,14 @@ def fetch_weibo():
 
 # ---------------- 知乎热榜 ----------------
 def fetch_zhihu():
+    # 主接口：热榜文章（部分出口 IP 会被挡，失败则走备用接口）
+    try:
+        return _fetch_zhihu_primary()
+    except Exception:
+        return _fetch_zhihu_top_search()
+
+
+def _fetch_zhihu_primary():
     url = "https://api.zhihu.com/topstory/hot-lists/total"
     r = get(url, params={"limit": 50})
     r.raise_for_status()
@@ -85,6 +93,25 @@ def fetch_zhihu():
         items.append({"title": title, "heat": heat, "url": link})
     if not items:
         raise RuntimeError("接口返回为空")
+    return items[:TOP_N]
+
+
+def _fetch_zhihu_top_search():
+    # 备用接口：热搜词（与知乎存档脚本同款；德国机上此接口通，主接口不通）
+    url = "https://www.zhihu.com/api/v4/search/top_search"
+    r = get(url, headers={"Referer": "https://www.zhihu.com/hot"})
+    r.raise_for_status()
+    data = r.json()
+    words = ((data.get("top_search") or {}).get("words") or [])
+    items = []
+    for w in words:
+        title = (w.get("display_query") or w.get("query") or "").strip()
+        if not title:
+            continue
+        items.append({"title": title, "heat": "",
+                      "url": "https://www.zhihu.com/search?q=" + urllib.parse.quote(title)})
+    if not items:
+        raise RuntimeError("备用接口返回为空")
     return items[:TOP_N]
 
 
