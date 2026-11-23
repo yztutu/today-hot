@@ -1,0 +1,64 @@
+name: schedule
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "35 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      TZ: Asia/Shanghai
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Install python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install requests
+        run: pip install requests
+
+      - name: Generate and push main
+        run: |
+          git config --local user.email "78296391+yztutu@users.noreply.github.com"
+          git config --local user.name "yztutu"
+          python3 generate.py
+          git add -A
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "今日热榜更新 $(date +%F)"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          else
+            echo "no changes"
+          fi
+
+      - name: Clone gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages
+
+      - name: Publish page
+        run: |
+          cp index.html pages/index.html
+          touch pages/.nojekyll
+          cd pages
+          git config --local user.email "78296391+yztutu@users.noreply.github.com"
+          git config --local user.name "yztutu"
+          git add -A
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "网页版更新 $(date +%F)"
+            git pull --rebase origin gh-pages
+            git push origin HEAD:gh-pages
+          else
+            echo "no page changes"
+          fi
