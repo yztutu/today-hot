@@ -269,26 +269,30 @@ def build_readme(now_str, results):
 def build_html(now_str, results):
     total = sum(len(r["items"]) for r in results.values() if r["ok"])
     sections = []
-    nav = []
+    tabs = ['<button class="tab on" data-k="all" '
+            'onclick="showTab(\'all\')">全部</button>']
     for key, name, emoji, _f in SOURCES:
         r = results[key]
-        nav.append(f'<a href="#{key}">{emoji} {esc_html(name)}</a>')
+        tabs.append(f'<button class="tab" data-k="{key}" '
+                    f'onclick="showTab(\'{key}\')">{emoji} {esc_html(name)}</button>')
         if not r["ok"]:
             body = (f'<p class="miss">⚠️ 该来源暂时无法获取'
                     f'（{esc_html(r["error"])}），下次更新自动重试。</p>')
         else:
             rows = []
             for i, it in enumerate(r["items"], 1):
-                cls = ' class="top"' if i <= 3 else ""
+                cls = f' class="top{i}"' if i <= 3 else ""
                 title = esc_html(it["title"])
                 cell = (f'<a href="{esc_html(it["url"])}" target="_blank" '
                         f'rel="noopener">{title}</a>') if it["url"] else title
-                rows.append(f'<tr{cls}><td class="rank">{i}</td>'
-                            f'<td class="t">{cell}</td>'
-                            f'<td class="h">{esc_html(it["heat"])}</td></tr>')
-            body = ('<table><thead><tr><th>名次</th><th>标题</th><th>热度</th></tr>'
-                    f'</thead><tbody>{"".join(rows)}</tbody></table>')
-        sections.append(f'<section id="{key}"><h2>{emoji} {esc_html(name)}</h2>{body}</section>')
+                heat = (f'<span class="heat">{esc_html(it["heat"])}</span>'
+                        if it["heat"] else "")
+                rows.append(f'<li{cls}><span class="rank">{i}</span>'
+                            f'<span class="t">{cell}</span>{heat}</li>')
+            body = f'<ol class="list">{"".join(rows)}</ol>'
+        cnt = len(r["items"]) if r["ok"] else 0
+        sections.append(f'<section id="{key}"><h2>{emoji} {esc_html(name)}'
+                        f'<span class="cnt">{cnt} 条</span></h2>{body}</section>')
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -296,28 +300,36 @@ def build_html(now_str, results):
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>今日热榜 · 全网热搜聚合</title>
 <meta name="description" content="微博热搜、知乎热榜、B站热门、百度热搜、抖音热榜，一页看全网热点，每小时更新。">
+<meta name="color-scheme" content="light dark">
 <style>
+:root{{--bg:#f6f7f9;--card:#ffffff;--text:#1f2328;--sub:#8a8f98;--line:#eef0f2;--chip:#f0f1f3;--accent:#ff4d4f}}
+@media (prefers-color-scheme:dark){{:root{{--bg:#0d1117;--card:#161b22;--text:#e6edf3;--sub:#8b949e;--line:#21262d;--chip:#21262d;--accent:#ff6b6d}}}}
 *{{box-sizing:border-box}}
-body{{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f6f7f9;color:#1f2328}}
-header{{background:linear-gradient(135deg,#ff4d4f,#ff7a45);color:#fff;padding:28px 16px 20px;text-align:center}}
-header h1{{margin:0 0 6px;font-size:26px}}
-header p{{margin:2px 0;opacity:.92;font-size:13px}}
-nav{{position:sticky;top:0;background:#fff;display:flex;gap:8px;overflow-x:auto;padding:10px 12px;box-shadow:0 1px 6px rgba(0,0,0,.08);z-index:9}}
-nav a{{white-space:nowrap;text-decoration:none;color:#333;background:#f0f1f3;border-radius:999px;padding:6px 12px;font-size:13px}}
-main{{max-width:760px;margin:0 auto;padding:8px 12px 32px}}
-section{{background:#fff;border-radius:12px;padding:14px 14px 8px;margin-top:14px;box-shadow:0 1px 4px rgba(0,0,0,.05)}}
-h2{{font-size:18px;margin:2px 0 10px}}
-table{{width:100%;border-collapse:collapse;font-size:14px}}
-th{{text-align:left;color:#8a8f98;font-weight:500;border-bottom:1px solid #eee;padding:6px 4px}}
-td{{border-bottom:1px solid #f2f2f2;padding:8px 4px;vertical-align:top}}
-tr:last-child td{{border-bottom:none}}
-td.rank{{width:34px;color:#8a8f98}}
-tr.top td.rank{{color:#ff4d4f;font-weight:700}}
-td.h{{width:86px;text-align:right;color:#ff7a45;white-space:nowrap}}
-td.t a{{color:#1f2328;text-decoration:none}}
-td.t a:hover{{color:#ff4d4f}}
-.miss{{color:#8a8f98;font-size:14px}}
-footer{{text-align:center;color:#9aa0a6;font-size:12px;padding:18px 12px 28px;line-height:1.7}}
+body{{margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text)}}
+header{{background:linear-gradient(135deg,#ff4d4f,#ff7a45);color:#fff;padding:26px 16px 18px;text-align:center}}
+header h1{{margin:0 0 6px;font-size:25px}}
+header p{{margin:2px 0;opacity:.93;font-size:13px}}
+.tabs{{position:sticky;top:0;background:var(--card);display:flex;gap:8px;overflow-x:auto;padding:10px 12px;box-shadow:0 1px 6px rgba(0,0,0,.10);z-index:9;-webkit-overflow-scrolling:touch}}
+.tab{{white-space:nowrap;border:0;cursor:pointer;font:inherit;color:var(--text);background:var(--chip);border-radius:999px;padding:6px 13px;font-size:13px}}
+.tab.on{{background:var(--accent);color:#fff;font-weight:600}}
+main{{max-width:760px;margin:0 auto;padding:6px 12px 30px}}
+section{{background:var(--card);border-radius:14px;padding:14px 14px 6px;margin-top:14px;box-shadow:0 1px 4px rgba(0,0,0,.06)}}
+h2{{font-size:17px;margin:2px 0 8px;display:flex;align-items:baseline;gap:8px}}
+.cnt{{color:var(--sub);font-size:12px;font-weight:400}}
+.list{{list-style:none;margin:0;padding:0}}
+.list li{{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line);font-size:14.5px;line-height:1.45}}
+.list li:last-child{{border-bottom:none}}
+.rank{{flex:0 0 24px;width:24px;height:24px;line-height:24px;text-align:center;border-radius:8px;background:var(--chip);color:var(--sub);font-size:13px;font-weight:600}}
+li.top1 .rank{{background:#ff4d4f;color:#fff}}
+li.top2 .rank{{background:#ff7a45;color:#fff}}
+li.top3 .rank{{background:#ffa940;color:#fff}}
+.t{{flex:1;min-width:0}}
+.t a{{color:var(--text);text-decoration:none}}
+.t a:hover,.t a:active{{color:var(--accent)}}
+.heat{{flex:0 0 auto;color:#ff7a45;font-size:12.5px;background:rgba(255,122,69,.12);border-radius:999px;padding:2px 8px;white-space:nowrap}}
+.miss{{color:var(--sub);font-size:14px}}
+footer{{text-align:center;color:var(--sub);font-size:12px;padding:16px 12px 28px;line-height:1.7}}
+footer a{{color:var(--sub)}}
 </style>
 </head>
 <body>
@@ -326,14 +338,16 @@ footer{{text-align:center;color:#9aa0a6;font-size:12px;padding:18px 12px 28px;li
 <p>微博 · 知乎 · B站 · 百度 · 抖音，一页看全网热点</p>
 <p>🕐 最近更新：{esc_html(now_str)}（北京时间） · 本期共 {total} 条</p>
 </header>
-<nav>{''.join(nav)}</nav>
+<nav class="tabs">{''.join(tabs)}</nav>
 <main>{''.join(sections)}</main>
 <footer>数据来自各平台公开热榜接口，仅做汇总展示，版权归原平台所有。<br>
 由脚本自动维护，每小时更新 · <a href="https://github.com/yztutu/today-hot">GitHub 仓库</a></footer>
+<script>
+function showTab(k){{document.querySelectorAll('main section').forEach(function(s){{s.style.display=(k==='all'||s.id===k)?'':'none'}});document.querySelectorAll('.tab').forEach(function(b){{b.classList.toggle('on',b.dataset.k===k)}})}}
+</script>
 </body>
 </html>
 """
-
 
 def main():
     now = datetime.now(CST)
